@@ -17,7 +17,15 @@ static BOOL volumeBar = YTMU(@"YTMUltimateIsEnabled") && YTMU(@"volBar");
 @end
 
 %hook YTMWatchView
-%property (nonatomic, strong) GSVolBar *volumeBar;
+%new
+- (GSVolBar *)volumeBar {
+    return objc_getAssociatedObject(self, @selector(volumeBar));
+}
+
+%new
+- (void)setVolumeBar:(GSVolBar *)value {
+    objc_setAssociatedObject(self, @selector(volumeBar), value, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
 
 - (instancetype)initWithColorScheme:(id)scheme {
     self = %orig;

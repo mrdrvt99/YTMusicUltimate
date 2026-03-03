@@ -8,15 +8,7 @@
 #define ytmuInt(key) [[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"YTMUltimate"][key] integerValue]
 
 %hook YTPlayerViewController
-%new
-- (NSMutableDictionary *)sponsorBlockValues {
-    return objc_getAssociatedObject(self, @selector(sponsorBlockValues));
-}
-
-%new
-- (void)setSponsorBlockValues:(NSMutableDictionary *)value {
-    objc_setAssociatedObject(self, @selector(sponsorBlockValues), value, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
+%property (nonatomic, strong) NSMutableDictionary *sponsorBlockValues;
 
 - (void)playbackController:(id)arg1 didActivateVideo:(id)arg2 withPlaybackData:(id)arg3 {
     %orig;

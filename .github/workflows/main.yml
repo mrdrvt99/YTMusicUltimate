@@ -105,12 +105,21 @@ jobs:
       - name: Inject tweak into provided IPA
         run: cyan -i ytm.ipa -o YTMusicUltimate.ipa -uwef ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }}
 
+      - name: Strip signature for TrollStore
+        run: |
+          unzip -q YTMusicUltimate.ipa -d ts_prep
+          ldid -S ts_prep/Payload/*.app/$(plutil -extract CFBundleExecutable raw ts_prep/Payload/*.app/Info.plist)
+          cd ts_prep && zip -qr ../YTMusicUltimate.tipa Payload
+          cd .. && rm -rf ts_prep
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ytmu-ipa${{ github.run_number }}
           name: YTMusicUltimate (${{ github.run_number }})
-          files: YTMusicUltimate.ipa
+          files: |
+              YTMusicUltimate.ipa
+              YTMusicUltimate.tipa
           draft: true
 
       - name: Output Release URL

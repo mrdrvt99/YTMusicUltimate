@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout Main
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
         with:
           path: main
           submodules: recursive
@@ -64,7 +64,7 @@ jobs:
 
       - name: Cache Theos
         id: theos
-        uses: actions/cache@v5.0.3
+        uses: actions/cache@v4
         env:
           cache-name: theos_cache_344ee59
         with:
@@ -74,7 +74,7 @@ jobs:
 
       - name: Setup Theos
         if: steps.theos.outputs.cache-hit != 'true'
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
         with:
           repository: theos/theos
           ref: 344ee5925df036dbd1312b783ad5a00d153c2445
@@ -84,9 +84,9 @@ jobs:
       - name: Download iOS SDK
         if: steps.theos.outputs.cache-hit != 'true'
         run: |
-          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/theos/sdks.git
-          cd sdks
-          git sparse-checkout set --no-cone iPhoneOS16.5.sdk
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/Tonwalter888/iOS-SDKs.git
+          cd iOS-SDKs
+          git sparse-checkout set --no-cone iPhoneOS18.6.sdk
           git checkout
           mv *.sdk $THEOS/sdks
 
@@ -103,11 +103,12 @@ jobs:
           mv packages/*.deb ../ytmult.deb
 
       - name: Inject tweak into provided IPA
-        run: cyan -i ytm.ipa -o YTMusicUltimate.ipa -uwf ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }}
+        run: cyan -i ytm.ipa -o YTMusicUltimate.ipa -uwef ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }}
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2.5.0
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ytmu-ipa${{ github.run_number }}
           name: YTMusicUltimate (${{ github.run_number }})
           files: YTMusicUltimate.ipa
           draft: true

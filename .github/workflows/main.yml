@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout Main
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
         with:
           path: main
           submodules: recursive
@@ -64,7 +64,7 @@ jobs:
 
       - name: Cache Theos
         id: theos
-        uses: actions/cache@v5.0.3
+        uses: actions/cache@v4
         env:
           cache-name: theos_cache_344ee59
         with:
@@ -74,7 +74,7 @@ jobs:
 
       - name: Setup Theos
         if: steps.theos.outputs.cache-hit != 'true'
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
         with:
           repository: theos/theos
           ref: 344ee5925df036dbd1312b783ad5a00d153c2445
@@ -105,11 +105,50 @@ jobs:
       - name: Inject tweak into provided IPA
         run: cyan -i ytm.ipa -o YTMusicUltimate.ipa -uwsf ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }} 
 
+      - name: Prepare TrollStore IPA (.tipa)
+        run: |
+          unzip -q YTMusicUltimate.ipa -d ts_prep
+          APP_BUNDLE=$(ls -d ts_prep/Payload/*.app)
+          MAIN_EXEC_NAME=$(plutil -extract CFBundleExecutable raw "$APP_BUNDLE/Info.plist")
+          MAIN_EXEC="$APP_BUNDLE/$MAIN_EXEC_NAME"
+          find "$APP_BUNDLE" -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
+          find "$APP_BUNDLE" -name "*.dylib" -exec ldid -S {} \;
+          if [ -d "$APP_BUNDLE/Frameworks" ]; then
+            find "$APP_BUNDLE/Frameworks" -maxdepth 3 -type f | while read f; do
+              if file "$f" | grep -qE "Mach-O (64-bit )?executable|Mach-O (64-bit )?dynamically linked shared library"; then
+                ldid -S "$f"
+              fi
+            done
+          fi
+          if [ -d "$APP_BUNDLE/PlugIns" ]; then
+            find "$APP_BUNDLE/PlugIns" -name "*.appex" | while read ext; do
+              EXT_EXEC="$ext/$(plutil -extract CFBundleExecutable raw "$ext/Info.plist")"
+              [ -f "$EXT_EXEC" ] && ldid -S "$EXT_EXEC"
+            done
+          fi
+          cat > /tmp/ts_ents.plist << 'ENTEOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>platform-application</key>
+            <true/>
+            <key>com.apple.private.skip-library-validation</key>
+            <true/>
+          </dict>
+          </plist>
+          ENTEOF
+          ldid -S/tmp/ts_ents.plist "$MAIN_EXEC"
+          cd ts_prep && zip -qr ../YTMusicUltimate.tipa Payload
+          cd .. && rm -rf ts_prep
+          
       - name: Create Release
-        uses: softprops/action-gh-release@v2.5.0
+        uses: softprops/action-gh-release@v2.6.2
         with:
           name: YTMusicUltimate (${{ github.run_number }})
-          files: YTMusicUltimate.ipa
+          files: |
+              YTMusicUltimate.ipa
+              YTMusicUltimate.tipa
           draft: true
 
       - name: Output Release URL

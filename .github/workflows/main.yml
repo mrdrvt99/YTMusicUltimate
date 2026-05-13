@@ -32,32 +32,40 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Main
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           path: main
           submodules: recursive
 
-      - name: Hide sensitive inputs
+      - name: Hide Sensitive Inputs
         uses: levibostian/action-hide-sensitive-inputs@v1
         with:
           exclude_inputs: bundle_id,display_name
 
-      - name: Validate IPA URL
+      - name: Download and Validate IPA
         run: |
-          curl -L -r 0-1023 -o sample.part "${{ inputs.ipa_url }}" > /dev/null 2>&1
-          
-          file_type=$(file --mime-type -b sample.part)
-
+          wget "${{ inputs.ipa_url }}" --quiet --no-verbose -O ytm.ipa
+          file_type=$(file --mime-type -b ytm.ipa)
           if [[ "$file_type" != "application/x-ios-app" && "$file_type" != "application/zip" ]]; then
-            echo "::error::Validation failed: The file is not a valid IPA file. Detected type: $file_type."
+            echo "::error::Validation failed: The downloaded file is not a valid IPA. Detected type: $file_type."
             exit 1
           fi
+
+      - name: Get YouTube Music Version
+        run: |
+          unzip -q ytm.ipa -d ytmextracted
+          echo "YTM_VERSION=$(grep -A 1 '<key>CFBundleVersion</key>' ytmextracted/Payload/*.app/Info.plist | grep '<string>' | awk -F'[><]' '{print $3}')" >> $GITHUB_ENV
+          rm -rf ytmextracted
+
+      - name: Get Tweak Version
+        run: |
+          echo "YTMU_VERSION=$(grep '^PACKAGE_VERSION' main/Makefile | awk -F' = ' '{print $2}')" >> $GITHUB_ENV
 
       - name: Install Dependencies
         run: brew install make ldid
 
-      - name: Set PATH environment variables
+      - name: Set PATH Environment Variables
         run: |
           echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
           echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
@@ -66,7 +74,7 @@ jobs:
         id: theos
         uses: actions/cache@v4
         env:
-          cache-name: theos_cache_344ee59
+          cache-name: theos_cache_344ee59_sdk18.6
         with:
           path: theos/
           key: ${{ env.cache-name }}
@@ -84,17 +92,14 @@ jobs:
       - name: Download iOS SDK
         if: steps.theos.outputs.cache-hit != 'true'
         run: |
-          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/theos/sdks.git
-          cd sdks
-          git sparse-checkout set --no-cone iPhoneOS16.5.sdk
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/Tonwalter888/iOS-SDKs.git
+          cd iOS-SDKs
+          git sparse-checkout set --no-cone iPhoneOS18.6.sdk
           git checkout
           mv *.sdk $THEOS/sdks
 
       - name: Install cyan
         run: pipx install --force https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
-
-      - name: Download YouTube Music
-        run: wget "${{ inputs.ipa_url }}" --no-verbose -O ytm.ipa
 
       - name: Build Tweak for Sideloading
         run: |
@@ -102,56 +107,21 @@ jobs:
           make clean package DEBUG=0 FINALPACKAGE=1 SIDELOADING=1
           mv packages/*.deb ../ytmult.deb
 
-      - name: Inject tweak into provided IPA
-        run: cyan -i ytm.ipa -o YTMusicUltimate.ipa -uwsf ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }} 
+      - name: Inject Tweak Into IPA
+        run: cyan -i ytm.ipa -o YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }}.ipa -uwesf ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }}
 
-      - name: Prepare TrollStore IPA (.tipa)
-        run: |
-          unzip -q YTMusicUltimate.ipa -d ts_prep
-          APP_BUNDLE=$(ls -d ts_prep/Payload/*.app)
-          MAIN_EXEC_NAME=$(plutil -extract CFBundleExecutable raw "$APP_BUNDLE/Info.plist")
-          MAIN_EXEC="$APP_BUNDLE/$MAIN_EXEC_NAME"
-          find "$APP_BUNDLE" -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
-          find "$APP_BUNDLE" -name "*.dylib" -exec ldid -S {} \;
-          if [ -d "$APP_BUNDLE/Frameworks" ]; then
-            find "$APP_BUNDLE/Frameworks" -maxdepth 3 -type f | while read f; do
-              if file "$f" | grep -qE "Mach-O (64-bit )?executable|Mach-O (64-bit )?dynamically linked shared library"; then
-                ldid -S "$f"
-              fi
-            done
-          fi
-          if [ -d "$APP_BUNDLE/PlugIns" ]; then
-            find "$APP_BUNDLE/PlugIns" -name "*.appex" | while read ext; do
-              EXT_EXEC="$ext/$(plutil -extract CFBundleExecutable raw "$ext/Info.plist")"
-              [ -f "$EXT_EXEC" ] && ldid -S "$EXT_EXEC"
-            done
-          fi
-          cat > /tmp/ts_ents.plist << 'ENTEOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>platform-application</key>
-            <true/>
-            <key>com.apple.private.skip-library-validation</key>
-            <true/>
-          </dict>
-          </plist>
-          ENTEOF
-          ldid -S/tmp/ts_ents.plist "$MAIN_EXEC"
-          cd ts_prep && zip -qr ../YTMusicUltimate.tipa Payload
-          cd .. && rm -rf ts_prep
-          
-      - name: Create Release
+      - name: Create a Draft Release
         uses: softprops/action-gh-release@v2.6.2
         with:
           tag_name: ytmu-ipa${{ github.run_number }}
-          name: YTMusicUltimate (${{ github.run_number }})
-          files: |
-              YTMusicUltimate.ipa
-              YTMusicUltimate.tipa
+          name: YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }} (${{ github.run_number }})
+          files: YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }}.ipa
           draft: true
 
-      - name: Output Release URL
+      - name: Job Summary - Build Complete
+        run: echo -e '### 🛠️ Build YTMusicUltimate IPA Complete!' >> $GITHUB_STEP_SUMMARY
+
+      - name: Job Summary - Output the Draft Release Link
         run: |
-          echo "::notice::Release available at: https://github.com/${{ github.repository }}/releases"
+          echo -e "### 🚀 Draft Release\n\nDraft release has been created successfully! You can view your release here: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
+

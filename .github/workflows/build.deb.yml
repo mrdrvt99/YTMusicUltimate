@@ -1,0 +1,83 @@
+name: Build YTMusicUltimate DEBs Only
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Tweak DEBs
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6.0.2
+        with:
+          path: main
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: brew install make ldid
+
+      - name: Set PATH Environment Variables
+        run: |
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+          echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
+
+      - name: Cache Theos
+        id: theos
+        uses: actions/cache@v5.0.5
+        env:
+          cache-name: theos_cache_344ee59_sdk18.6
+        with:
+          path: theos/
+          key: ${{ env.cache-name }}
+          restore-keys: ${{ env.cache-name }}
+
+      - name: Setup Theos
+        if: steps.theos.outputs.cache-hit != 'true'
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: theos/theos
+          ref: 344ee5925df036dbd1312b783ad5a00d153c2445
+          path: theos
+          submodules: recursive
+
+      - name: Download iOS SDK
+        if: steps.theos.outputs.cache-hit != 'true'
+        run: |
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/Tonwalter888/iOS-SDKs.git
+          cd iOS-SDKs
+          git sparse-checkout set --no-cone iPhoneOS18.6.sdk
+          git checkout
+          mv *.sdk $THEOS/sdks
+
+      - name: Build Rootful Tweak
+        run: |
+          cd main
+          make clean package DEBUG=0 FINALPACKAGE=1
+          mkdir -p ../output/rootful
+          mv packages/*.deb ../output/rootful/
+
+      - name: Build Rootless Tweak
+        run: |
+          cd main
+          make clean package DEBUG=0 FINALPACKAGE=1 ROOTLESS=1
+          mkdir -p ../output/rootless
+          mv packages/*.deb ../output/rootless/
+
+      - name: Build Sideloading Tweak
+        run: |
+          cd main
+          make clean package DEBUG=0 FINALPACKAGE=1 SIDELOADING=1
+          mkdir -p ../output/sideload
+          mv packages/*.deb ../output/sideload/
+
+      - name: Upload .deb Artifacts
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: YTMusicUltimate-Compiled-DEBs
+          path: output/**/*.deb

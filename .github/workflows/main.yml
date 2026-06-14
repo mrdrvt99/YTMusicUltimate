@@ -20,6 +20,30 @@ on:
         required: true
         type: string
 
+      rymd:
+        description: "Integrate Return YouTubeMusic Dislikes"
+        type: boolean
+        required: true
+        default: false
+
+      ytmabc:
+        description: "Integrate YTMABConfig"
+        type: boolean
+        required: true
+        default: false
+
+      youmusicpip:
+        description: "Integrate YouMusicPiP"
+        type: boolean
+        required: true
+        default: false
+
+      volumeboostyt:
+        description: "Integrate VolumeBoostYT"
+        type: boolean
+        required: true
+        default: false
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -41,7 +65,7 @@ jobs:
       - name: Hide Sensitive Inputs
         uses: levibostian/action-hide-sensitive-inputs@1.2.0
         with:
-          exclude_inputs: bundle_id,display_name
+          exclude_inputs: bundle_id,display_name,rymd,ytmabc,youmusicpip,volumeboostyt
 
       - name: Download and Validate IPA
         run: |
@@ -101,6 +125,57 @@ jobs:
       - name: Install cyan
         run: pipx install --force https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
 
+      - name: Clone YouTubeHeader
+        run: |
+          rm -rf $THEOS/include/YouTubeHeader
+          git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git $THEOS/include/YouTubeHeader
+
+      - name: Clone PSHeader
+        run: |
+          rm -rf $THEOS/include/PSHeader
+          git clone --quiet --depth=1 https://github.com/PoomSmart/PSHeader.git $THEOS/include/PSHeader
+
+      - name: Clone YouTubeMusicHeader
+        run: |
+          rm -rf $THEOS/include/YouTubeMusicHeader
+          git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeMusicHeader.git $THEOS/include/YouTubeMusicHeader
+
+      - name: Clone Return YouTube Dislikes
+        if: ${{ inputs.rymd }}
+        run: git clone --quiet --depth=1 https://github.com/PoomSmart/Return-YouTube-Dislikes.git
+
+      - name: Clone YouPiP
+        if: ${{ inputs.youmusicpip }}
+        run: git clone --quiet --depth=1 https://github.com/PoomSmart/YouPiP.git
+
+      - name: Clone and Build Return YouTubeMusic Dislikes
+        if: ${{ inputs.rymd }}
+        run: |
+          git clone --quiet --depth=1 https://github.com/PoomSmart/Return-YouTube-Music-Dislikes.git
+          cd Return-YouTube-Music-Dislikes && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          mv packages/*.deb ${{ github.workspace }}/rymd.deb
+
+      - name: Clone and Build YTMABConfig
+        if: ${{ inputs.ytmabc }}
+        run: |
+          git clone --quiet --depth=1 https://github.com/PoomSmart/YTMABConfig.git
+          cd YTMABConfig && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          mv packages/*.deb ${{ github.workspace }}/ytmabc.deb
+
+      - name: Clone and Build YouMusicPiP
+        if: ${{ inputs.youmusicpip }}
+        run: |
+          git clone --quiet --depth=1 https://github.com/PoomSmart/YouMusicPiP.git
+          cd YouMusicPiP && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          mv packages/*.deb ${{ github.workspace }}/youmusicpip.deb
+
+      - name: Clone and Build VolumeBoostYT
+        if: ${{ inputs.volumeboostyt }}
+        run: |
+          git clone --quiet --depth=1 https://github.com/VasirakCalgux/VolumeBoostYT.git
+          cd VolumeBoostYT && make clean package DEBUG=0 FINALPACKAGE=1
+          mv packages/*.deb ${{ github.workspace }}/volumeboostyt.deb
+
       - name: Build Tweak for Sideloading
         run: |
           cd main
@@ -108,7 +183,12 @@ jobs:
           mv packages/*.deb ../ytmult.deb
 
       - name: Inject Tweak Into IPA
-        run: cyan -i ytm.ipa -o YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }}.ipa -uwesf ytmult.deb -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }}
+        run: |
+          tweaks="ytmult.deb"
+          for f in rymd.deb ytmabc.deb youmusicpip.deb volumeboostyt.deb; do
+            [ -f "$f" ] && tweaks="$tweaks $f"
+          done
+          cyan -i ytm.ipa -o YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }}.ipa -uwesf $tweaks -n "${{ inputs.display_name }}" -b ${{ inputs.bundle_id }}
 
       - name: Create a Draft Release
         uses: softprops/action-gh-release@v3
@@ -124,4 +204,3 @@ jobs:
       - name: Job Summary - Output the Draft Release Link
         run: |
           echo -e "### 🚀 Draft Release\n\nDraft release has been created successfully! You can view your release here: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
-

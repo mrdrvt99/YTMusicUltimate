@@ -87,7 +87,10 @@ jobs:
           echo "YTMU_VERSION=$(grep '^PACKAGE_VERSION' main/Makefile | awk -F' = ' '{print $2}')" >> $GITHUB_ENV
 
       - name: Install Dependencies
-        run: brew install make ldid
+        run: |
+          brew uninstall --ignore-dependencies bicep || true
+          brew untap aws/tap azure/bicep || true
+          brew install make ldid
 
       - name: Set PATH Environment Variables
         run: |

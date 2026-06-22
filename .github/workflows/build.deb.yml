@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
         with:
           path: main
           submodules: recursive
@@ -39,7 +39,7 @@ jobs:
 
       - name: Setup Theos
         if: steps.theos.outputs.cache-hit != 'true'
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
         with:
           repository: theos/theos
           ref: 344ee5925df036dbd1312b783ad5a00d153c2445

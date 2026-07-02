@@ -57,13 +57,13 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7
         with:
           path: main
           submodules: recursive
 
       - name: Hide Sensitive Inputs
-        uses: levibostian/action-hide-sensitive-inputs@1.2.0
+        uses: levibostian/action-hide-sensitive-inputs@v1
         with:
           exclude_inputs: bundle_id,display_name,rymd,ytmabc,youmusicpip,volumeboostyt
 
@@ -99,7 +99,7 @@ jobs:
 
       - name: Cache Theos
         id: theos
-        uses: actions/cache@v5.0.5
+        uses: actions/cache@v6
         env:
           cache-name: theos_cache_9bc7340_sdk18.6
         with:
@@ -109,7 +109,7 @@ jobs:
 
       - name: Setup Theos
         if: steps.theos.outputs.cache-hit != 'true'
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7
         with:
           repository: theos/theos
           ref: 9bc73406cf80b711ef4d02c15ff1dedc4478a275

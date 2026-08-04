@@ -54,6 +54,8 @@ If the github action works and you cannot find where you can download the result
    • To learn how to inject tweaks in to ipa visit __[here (Azule)](https://github.com/Al4ise/Azule)__
 
 
-
+- - -
+  > [!NOTE]
+  > - iOS14+ build is now available on the releases page.
 
 Made with ❤ by Ginsu and Dayanch96

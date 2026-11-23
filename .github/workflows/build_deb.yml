@@ -10,11 +10,13 @@ concurrency:
 jobs:
   build:
     name: Build Tweak DEBs
-    runs-on: macos-latest
+    runs-on: xcode-27
+    env:
+      SDK_VERSION: '26.5'
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7
         with:
           path: main
           submodules: recursive
@@ -24,36 +26,35 @@ jobs:
 
       - name: Set PATH Environment Variables
         run: |
-          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
-          echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
 
-      - name: Cache Theos
-        id: theos
-        uses: actions/cache@v5.0.5
-        env:
-          cache-name: theos_cache_344ee59_sdk18.6
-        with:
-          path: theos/
-          key: ${{ env.cache-name }}
-          restore-keys: ${{ env.cache-name }}
-
-      - name: Setup Theos
-        if: steps.theos.outputs.cache-hit != 'true'
-        uses: actions/checkout@v7.0.0
+      - name: Setup Theos (latest commit)
+        uses: actions/checkout@v7
         with:
           repository: theos/theos
-          ref: 344ee5925df036dbd1312b783ad5a00d153c2445
           path: theos
           submodules: recursive
+          persist-credentials: false
+
+      - name: Cache iOS SDK
+        id: sdk
+        uses: actions/cache@v6
+        with:
+          path: theos/sdks/
+          key: ios_sdk_${{ env.SDK_VERSION }}
 
       - name: Download iOS SDK
-        if: steps.theos.outputs.cache-hit != 'true'
+        if: steps.sdk.outputs.cache-hit != 'true'
         run: |
-          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/Tonwalter888/iOS-SDKs.git
-          cd iOS-SDKs
-          git sparse-checkout set --no-cone iPhoneOS18.6.sdk
+          sdk_repo="$RUNNER_TEMP/iOS-SDKs"
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/xybp888/iOS-SDKs.git "$sdk_repo"
+          cd "$sdk_repo"
+          git sparse-checkout set --no-cone "iPhoneOS${SDK_VERSION}.sdk"
           git checkout
-          mv *.sdk $THEOS/sdks
+          mkdir -p "$THEOS/sdks"
+          mv "iPhoneOS${SDK_VERSION}.sdk" "$THEOS/sdks/"
+          rm -rf "$sdk_repo"
 
       - name: Build Rootful Tweak
         run: |
@@ -77,7 +78,7 @@ jobs:
           mv packages/*.deb ../output/sideload/
 
       - name: Upload .deb Artifacts
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7
         with:
           name: YTMusicUltimate-Compiled-DEBs
           path: output/**/*.deb

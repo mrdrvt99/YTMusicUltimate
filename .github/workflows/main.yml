@@ -25,13 +25,13 @@ on:
         description: "Integrate Return YouTubeMusic Dislikes"
         type: boolean
         required: true
-        default: false
+        default: true
 
       ytmabc:
         description: "Integrate YTMABConfig"
         type: boolean
         required: true
-        default: false
+        default: true
 
       youmusicpip:
         description: "Integrate YouMusicPiP"
@@ -60,7 +60,7 @@ jobs:
     permissions:
       contents: write
     env:
-      SDK_VERSION: '18.6'
+      SDK_VERSION: '26.5'
 
     steps:
       - name: Hide Sensitive Inputs
@@ -133,28 +133,26 @@ jobs:
           echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
 
-      - name: Cache Theos
-        id: theos
-        uses: actions/cache@v6
-        with:
-          path: theos/
-          key: theos_cache_9bc7340_sdk${{ env.SDK_VERSION }}
-
-      - name: Setup Theos
-        if: steps.theos.outputs.cache-hit != 'true'
+      - name: Setup Theos (latest commit)
         uses: actions/checkout@v7
         with:
           repository: theos/theos
-          ref: 9bc73406cf80b711ef4d02c15ff1dedc4478a275
           path: theos
           submodules: recursive
           persist-credentials: false
 
+      - name: Cache iOS SDK
+        id: sdk
+        uses: actions/cache@v6
+        with:
+          path: theos/sdks/
+          key: ios_sdk_${{ env.SDK_VERSION }}
+
       - name: Download iOS SDK
-        if: steps.theos.outputs.cache-hit != 'true'
+        if: steps.sdk.outputs.cache-hit != 'true'
         run: |
           sdk_repo="$RUNNER_TEMP/iOS-SDKs"
-          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/Tonwalter888/iOS-SDKs.git "$sdk_repo"
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/xybp888/iOS-SDKs.git "$sdk_repo"
           cd "$sdk_repo"
           git sparse-checkout set --no-cone "iPhoneOS${SDK_VERSION}.sdk"
           git checkout
@@ -242,9 +240,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ytmu-ipa${{ github.run_number }}
-          name: YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }} (${{ github.run_number }})
+          name: YTMusicUltimate_${{ env.YTM_VERSION }}_${{ env.YTMU_VERSION }}
           files: ${{ env.IPA_NAME }}
-          draft: true
+          draft: false
           fail_on_unmatched_files: true
 
       - name: Job Summary

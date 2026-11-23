@@ -1,7 +1,7 @@
 Package: com.ginsu.ytmusicultimate
 Name: YTMusicUltimate
 Version: 0.0.1
-Architecture: iphoneos-arm
+Architecture: iphoneos-arm64
 Description: YouTube Music Premium
 Maintainer: dayanch96 & ginsu
 Author: dayanch96 & ginsu
